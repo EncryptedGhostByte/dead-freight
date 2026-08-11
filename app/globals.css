@@ -281,7 +281,7 @@ h1 {
 .choice-grid.samples { grid-template-columns: repeat(3, 1fr); }
 .choice-grid.samples button b { font-size: 11px; }
 
-.gunner-shell { position: fixed; inset: 0; z-index: 100; overflow: hidden; background: #111; color: #f4f4f4; font-family: var(--font-geist-mono), "Courier New", monospace; cursor: crosshair; }
+.gunner-shell { position: fixed; inset: 0; z-index: 100; overflow: hidden; background: #111 url("/flir-port-bg.png") center/cover no-repeat; color: #f4f4f4; font-family: var(--font-geist-mono), "Courier New", monospace; cursor: crosshair; }
 .flir-canvas { position: absolute; inset: 0; display: block; touch-action: none; filter: grayscale(1) contrast(1.35); }
 .flir-scanlines { position: absolute; inset: 0; pointer-events: none; opacity: .42; mix-blend-mode: overlay; background: repeating-linear-gradient(0deg, transparent 0, transparent 3px, rgba(255,255,255,.08) 4px), radial-gradient(circle at center, transparent 30%, rgba(0,0,0,.5) 100%); }
 .flir-corners { position: absolute; inset: 0; pointer-events: none; }
@@ -320,6 +320,7 @@ h1 {
 .gunner-controls span { color: #9da19d; font-size: 8px; }
 .gunner-controls b { text-align: right; font-size: 9px; }
 .gunner-card button { width: 100%; padding: 13px 15px; border: 0; background: #eee; color: #080908; font: 900 10px var(--font-geist-mono), monospace; letter-spacing: .14em; cursor: pointer; }
+.gunner-card button:disabled { opacity: .48; cursor: wait; }
 .gunner-card button.ghost-action { margin-top: 7px; border: 1px solid rgba(255,255,255,.25); background: transparent; color: #bfc2bf; }
 .gunner-card.outcome.won { border-color: #fff; }
 .gunner-card.outcome.lost { border-color: #8f8f8f; }

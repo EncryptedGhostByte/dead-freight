@@ -10,6 +10,8 @@ type Target = {
   size: number;
   wobble: number;
   phase: number;
+  sprite: number;
+  drift: number;
 };
 
 type Impact = { x: number; y: number; life: number };
@@ -30,10 +32,30 @@ export function ThermalGunner({ onExit }: { onExit: () => void }) {
   const spawnedRef = useRef(0);
   const flashRef = useRef(0);
   const startRef = useRef(0);
+  const backgroundRef = useRef<HTMLImageElement | null>(null);
+  const spriteRef = useRef<HTMLImageElement | null>(null);
+  const [assetsReady, setAssetsReady] = useState(false);
   const [phase, setPhase] = useState<Phase>("briefing");
   const [hud, setHud] = useState({ kills: 0, escaped: 0, ammo: 120, time: MISSION_SECONDS });
 
+  useEffect(() => {
+    let loaded = 0;
+    const ready = () => {
+      loaded += 1;
+      if (loaded === 2) setAssetsReady(true);
+    };
+    const background = new window.Image();
+    const sprites = new window.Image();
+    background.onload = ready;
+    sprites.onload = ready;
+    background.src = "/flir-port-bg.png";
+    sprites.src = "/flir-zombie-sheet.png";
+    backgroundRef.current = background;
+    spriteRef.current = sprites;
+  }, []);
+
   const startMission = useCallback(() => {
+    if (!assetsReady) return;
     targetsRef.current = [];
     impactsRef.current = [];
     killsRef.current = 0;
@@ -45,7 +67,7 @@ export function ThermalGunner({ onExit }: { onExit: () => void }) {
     aimRef.current = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
     setHud({ kills: 0, escaped: 0, ammo: 120, time: MISSION_SECONDS });
     setPhase("active");
-  }, []);
+  }, [assetsReady]);
 
   const fire = useCallback(() => {
     if (phase !== "active" || ammoRef.current <= 0) return;
@@ -56,8 +78,8 @@ export function ThermalGunner({ onExit }: { onExit: () => void }) {
     let nearest = Infinity;
 
     targetsRef.current.forEach((target, index) => {
-      const distance = Math.hypot(target.x - aim.x, target.y - aim.y);
-      if (distance < target.size + 18 && distance < nearest) {
+      const distance = Math.hypot((target.x - aim.x) / 1.25, (target.y - aim.y) / 1.8);
+      if (distance < target.size * 1.65 && distance < nearest) {
         nearest = distance;
         hitIndex = index;
       }
@@ -111,60 +133,30 @@ export function ThermalGunner({ onExit }: { onExit: () => void }) {
 
     function drawPort(width: number, height: number, elapsed: number) {
       if (!context) return;
-      const ground = context.createLinearGradient(0, 0, 0, height);
-      ground.addColorStop(0, "#343634");
-      ground.addColorStop(.55, "#151715");
-      ground.addColorStop(1, "#252825");
-      context.fillStyle = ground;
+      const background = backgroundRef.current;
+      context.fillStyle = "#080908";
+      context.fillRect(0, 0, width, height);
+      if (background?.complete && background.naturalWidth) {
+        const scale = Math.max(width / background.naturalWidth, height / background.naturalHeight) * 1.02;
+        const sourceWidth = width / scale;
+        const sourceHeight = height / scale;
+        const swayX = Math.sin(elapsed * .17) * background.naturalWidth * .002;
+        const swayY = Math.cos(elapsed * .12) * background.naturalHeight * .002;
+        const sourceX = (background.naturalWidth - sourceWidth) / 2 + swayX;
+        const sourceY = (background.naturalHeight - sourceHeight) / 2 + swayY;
+        context.filter = "grayscale(1) contrast(1.24) brightness(.76)";
+        context.drawImage(background, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, width, height);
+        context.filter = "none";
+      }
+
+      const vignette = context.createRadialGradient(width * .5, height * .5, height * .18, width * .5, height * .5, height * .78);
+      vignette.addColorStop(0, "rgba(0,0,0,0)");
+      vignette.addColorStop(1, "rgba(0,0,0,.46)");
+      context.fillStyle = vignette;
       context.fillRect(0, 0, width, height);
 
-      context.fillStyle = "#0c0d0c";
-      context.fillRect(0, height * .18, width * .32, height * .31);
-      context.fillRect(width * .36, height * .24, width * .27, height * .23);
-      context.fillRect(width * .66, height * .15, width * .19, height * .3);
-
-      context.strokeStyle = "#565956";
-      context.lineWidth = 2;
-      for (let i = 0; i < 9; i += 1) {
-        const x = width * (.04 + i * .075);
-        context.beginPath();
-        context.moveTo(x, height * .18);
-        context.lineTo(x + width * .05, height * .06);
-        context.lineTo(x + width * .09, height * .18);
-        context.stroke();
-      }
-
-      context.fillStyle = "#393c39";
-      context.strokeStyle = "#8a8d8a";
-      context.lineWidth = 3;
-      const containerX = width * .81;
-      const containerY = height * .39;
-      const containerW = width * .18;
-      const containerH = height * .3;
-      context.fillRect(containerX, containerY, containerW, containerH);
-      context.strokeRect(containerX, containerY, containerW, containerH);
-      for (let i = 1; i < 6; i += 1) {
-        const ribX = containerX + (containerW / 6) * i;
-        context.beginPath();
-        context.moveTo(ribX, containerY);
-        context.lineTo(ribX, containerY + containerH);
-        context.stroke();
-      }
-      context.fillStyle = "#050505";
-      context.fillRect(containerX - 8, containerY + 8, 12, containerH - 16);
-
-      context.strokeStyle = "rgba(210,215,210,.16)";
-      context.lineWidth = 1;
-      for (let i = 0; i < 26; i += 1) {
-        const y = height * .48 + i * 17 + Math.sin(i * 3.1) * 7;
-        context.beginPath();
-        context.moveTo(0, y);
-        context.lineTo(width, y + Math.sin(elapsed + i) * 5);
-        context.stroke();
-      }
-
-      context.fillStyle = "rgba(235,240,235,.08)";
-      for (let i = 0; i < 110; i += 1) {
+      context.fillStyle = "rgba(240,245,240,.08)";
+      for (let i = 0; i < 145; i += 1) {
         const x = (i * 173 + frame * 7) % width;
         const y = (i * 97 + frame * 3) % height;
         context.fillRect(x, y, 1 + (i % 3), 1);
@@ -173,32 +165,29 @@ export function ThermalGunner({ onExit }: { onExit: () => void }) {
 
     function drawTarget(target: Target, elapsed: number) {
       if (!context) return;
-      const stride = Math.sin(elapsed * 7 + target.phase);
+      const sprites = spriteRef.current;
+      if (!sprites?.complete || !sprites.naturalWidth) return;
+      const stride = Math.sin(elapsed * 4.5 + target.phase);
       const x = target.x;
-      const y = target.y + Math.sin(elapsed * 2 + target.wobble) * 4;
+      const y = target.y + Math.sin(elapsed * 2 + target.wobble) * 5;
       const size = target.size;
+      const tileWidth = sprites.naturalWidth / 4;
+      const tileHeight = sprites.naturalHeight / 2;
+      const column = target.sprite % 4;
+      const row = Math.floor(target.sprite / 4);
+      const drawWidth = size * 2.6;
+      const drawHeight = size * 4.2;
       context.save();
-      context.strokeStyle = "#f7f7f7";
-      context.fillStyle = "#ffffff";
-      context.shadowColor = "#ffffff";
-      context.shadowBlur = 13;
-      context.lineCap = "round";
-      context.lineWidth = size * .22;
-      context.beginPath();
-      context.arc(x, y - size * .85, size * .22, 0, Math.PI * 2);
-      context.fill();
-      context.beginPath();
-      context.moveTo(x, y - size * .58);
-      context.lineTo(x + stride * 2, y + size * .15);
-      context.moveTo(x - 1, y - size * .38);
-      context.lineTo(x - size * .45, y - size * .05 + stride * 4);
-      context.moveTo(x, y - size * .38);
-      context.lineTo(x + size * .44, y - size * .02 - stride * 4);
-      context.moveTo(x, y + size * .08);
-      context.lineTo(x - size * .32, y + size * .72 - stride * 5);
-      context.moveTo(x, y + size * .08);
-      context.lineTo(x + size * .34, y + size * .72 + stride * 5);
-      context.stroke();
+      context.translate(x, y);
+      context.rotate(stride * .012);
+      context.globalCompositeOperation = "screen";
+      context.globalAlpha = .94;
+      context.filter = "contrast(1.38) brightness(1.15)";
+      context.drawImage(sprites, column * tileWidth, row * tileHeight, tileWidth, tileHeight, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+      context.filter = "none";
+      context.globalAlpha = .2;
+      context.scale(1, -.2);
+      context.drawImage(sprites, column * tileWidth, row * tileHeight, tileWidth, tileHeight, -drawWidth / 2, -drawHeight * 3.02, drawWidth, drawHeight);
       context.restore();
     }
 
@@ -256,15 +245,18 @@ export function ThermalGunner({ onExit }: { onExit: () => void }) {
           x: width * .82 + 20 + Math.random() * 35,
           y: height * (.51 + Math.random() * .27),
           speed: width * (.032 + Math.random() * .025),
-          size: 22 + Math.random() * 10,
+          size: 28 + Math.random() * 14,
           wobble: Math.random() * 8,
           phase: Math.random() * 8,
+          sprite: number % 8,
+          drift: (Math.random() - .5) * height * .018,
         });
         spawnedRef.current += 1;
       }
 
       targetsRef.current.forEach((target) => {
         target.x -= target.speed * dt;
+        target.y += target.drift * dt;
       });
       const escapedNow = targetsRef.current.filter((target) => target.x < -35).length;
       if (escapedNow) {
@@ -351,7 +343,7 @@ export function ThermalGunner({ onExit }: { onExit: () => void }) {
             <strong>THE CONTAINER IS OPEN.</strong>
             <p className="brief-copy">You are the thermal gunner aboard Apache Gunship 2-1. Eliminate the infected before they leave the terminal. No more than four can escape.</p>
             <div className="gunner-controls"><span>MOUSE / TOUCH</span><b>AIM + FIRE</b><span>ARROWS + SPACE</span><b>KEYBOARD</b></div>
-            <button onClick={startMission}>ARM 30MM CANNON</button>
+            <button onClick={startMission} disabled={!assetsReady}>{assetsReady ? "ARM 30MM CANNON" : "CALIBRATING FLIR..."}</button>
             <button className="ghost-action" onClick={onExit}>RETURN TO MAP</button>
           </div>
         </div>
