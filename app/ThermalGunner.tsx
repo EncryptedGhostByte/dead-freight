@@ -36,12 +36,14 @@ type Hud = {
   ltm: number;
 };
 
+const ASSET_BASE = import.meta.env.BASE_URL || "/";
+
 const LOCATIONS = [
   {
     name: "PIER 400",
     sector: "PORT OF LOS SANTOS",
     objective: "Container breach",
-    image: "/flir-port-topdown.png",
+    image: `${ASSET_BASE}flir-port-topdown.png`,
     targets: 18,
     duration: 46,
     team: { x: .25, y: .74 },
@@ -52,7 +54,7 @@ const LOCATIONS = [
     name: "CYPRESS RAIL YARD",
     sector: "EAST LOS SANTOS",
     objective: "Freight transfer intercepted",
-    image: "/flir-rail-yard.png",
+    image: `${ASSET_BASE}flir-rail-yard.png`,
     targets: 22,
     duration: 50,
     team: { x: .72, y: .72 },
@@ -63,7 +65,7 @@ const LOCATIONS = [
     name: "LSIA CARGO APRON",
     sector: "LOS SANTOS INTERNATIONAL",
     objective: "Final containment",
-    image: "/flir-airport-apron.png",
+    image: `${ASSET_BASE}flir-airport-apron.png`,
     targets: 27,
     duration: 56,
     team: { x: .5, y: .76 },
@@ -153,7 +155,7 @@ export function ThermalGunner({ onExit }: { onExit: () => void }) {
       spriteTilesRef.current = tiles;
       ready();
     };
-    sprites.src = "/flir-zombies-topdown.png";
+    sprites.src = `${ASSET_BASE}flir-zombies-topdown.png`;
     backgroundRefs.current = backgrounds;
     return () => audioRef.current?.close();
   }, []);
