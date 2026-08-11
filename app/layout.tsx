@@ -17,20 +17,20 @@ export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
   const host = requestHeaders.get("host") ?? "localhost:3000";
   const protocol = requestHeaders.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  const image = `${protocol}://${host}/og-v2.png`;
+  const image = `${protocol}://${host}/og-v3.png`;
 
   return {
     title: "Dead Freight — Los Santos Containment",
-    description: "Solve eight field traces to track an infected shipping container through Los Santos before the cargo breaks loose.",
+    description: "Solve eight field traces, then stop the infected in a playable thermal gunship finale.",
     openGraph: {
       title: "Dead Freight",
-      description: "Eight traces. One infected container. Find it before it breaks loose.",
+      description: "Track the infected cargo, then contain the breach from Gunship 2-1.",
       images: [{ url: image, width: 1536, height: 1024, alt: "Dead Freight infected cargo tracking operation" }],
     },
     twitter: {
       card: "summary_large_image",
       title: "Dead Freight",
-      description: "Eight traces. One infected container. Find it before it breaks loose.",
+      description: "Track the infected cargo, then contain the breach from Gunship 2-1.",
       images: [image],
     },
   };

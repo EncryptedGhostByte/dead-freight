@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ThermalGunner } from "./ThermalGunner";
 
 type Mission = {
   code: string;
@@ -54,6 +55,7 @@ export default function Home() {
   const [manifest, setManifest] = useState("");
   const [choice, setChoice] = useState("");
   const [timeline, setTimeline] = useState<string[]>([]);
+  const [gunner, setGunner] = useState(false);
 
   const progress = cleared.filter(Boolean).length;
   const complete = progress === missions.length;
@@ -108,6 +110,7 @@ export default function Home() {
     setCleared(Array(missions.length).fill(false));
     setActive(null);
     setNotice("Case reset. Select the first trace on the map.");
+    setGunner(false);
     clearInputs();
   }
 
@@ -210,7 +213,7 @@ export default function Home() {
           <section className={`containment-card ${complete ? "revealed" : ""}`}>
             <span>FINAL DIRECTIVE</span>
             {complete ? (
-              <><h2>INTERCEPT AT PIER 400</h2><p>The truck is entering the terminal from Chupacabra Street. Lock the east gate. Keep the container sealed.</p><button onClick={resetCase}>RUN CASE AGAIN</button></>
+              <><h2>CONTAINMENT BREACH</h2><p>The truck reached Pier 400, but the container doors failed. Gunship 2-1 is overhead and waiting for a thermal gunner.</p><button onClick={() => setGunner(true)}>BEGIN GUNSHIP INTERCEPT</button><button className="secondary-case-action" onClick={resetCase}>RUN CASE AGAIN</button></>
             ) : (
               <><h2>LOCATION REDACTED</h2><p>Complete all eight field traces before the truck reaches a populated district.</p><div className="redactions"><i /><i /><i /></div></>
             )}
@@ -303,6 +306,7 @@ export default function Home() {
           </section>
         </div>
       )}
+      {gunner && <ThermalGunner onExit={() => setGunner(false)} />}
     </main>
   );
 }

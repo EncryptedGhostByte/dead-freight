@@ -1,0 +1,374 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+
+type Target = {
+  id: number;
+  x: number;
+  y: number;
+  speed: number;
+  size: number;
+  wobble: number;
+  phase: number;
+};
+
+type Impact = { x: number; y: number; life: number };
+type Phase = "briefing" | "active" | "won" | "lost";
+
+const TOTAL_TARGETS = 20;
+const MAX_ESCAPES = 4;
+const MISSION_SECONDS = 55;
+
+export function ThermalGunner({ onExit }: { onExit: () => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const targetsRef = useRef<Target[]>([]);
+  const impactsRef = useRef<Impact[]>([]);
+  const aimRef = useRef({ x: 640, y: 360 });
+  const killsRef = useRef(0);
+  const escapedRef = useRef(0);
+  const ammoRef = useRef(120);
+  const spawnedRef = useRef(0);
+  const flashRef = useRef(0);
+  const startRef = useRef(0);
+  const [phase, setPhase] = useState<Phase>("briefing");
+  const [hud, setHud] = useState({ kills: 0, escaped: 0, ammo: 120, time: MISSION_SECONDS });
+
+  const startMission = useCallback(() => {
+    targetsRef.current = [];
+    impactsRef.current = [];
+    killsRef.current = 0;
+    escapedRef.current = 0;
+    ammoRef.current = 120;
+    spawnedRef.current = 0;
+    flashRef.current = 0;
+    startRef.current = performance.now();
+    aimRef.current = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    setHud({ kills: 0, escaped: 0, ammo: 120, time: MISSION_SECONDS });
+    setPhase("active");
+  }, []);
+
+  const fire = useCallback(() => {
+    if (phase !== "active" || ammoRef.current <= 0) return;
+    ammoRef.current -= 1;
+    flashRef.current = 1;
+    const aim = aimRef.current;
+    let hitIndex = -1;
+    let nearest = Infinity;
+
+    targetsRef.current.forEach((target, index) => {
+      const distance = Math.hypot(target.x - aim.x, target.y - aim.y);
+      if (distance < target.size + 18 && distance < nearest) {
+        nearest = distance;
+        hitIndex = index;
+      }
+    });
+
+    if (hitIndex >= 0) {
+      const [target] = targetsRef.current.splice(hitIndex, 1);
+      impactsRef.current.push({ x: target.x, y: target.y, life: 1 });
+      killsRef.current += 1;
+    }
+    setHud((old) => ({ ...old, kills: killsRef.current, ammo: ammoRef.current }));
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "active") return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const step = event.shiftKey ? 36 : 18;
+      if (event.key === "ArrowLeft") aimRef.current.x -= step;
+      if (event.key === "ArrowRight") aimRef.current.x += step;
+      if (event.key === "ArrowUp") aimRef.current.y -= step;
+      if (event.key === "ArrowDown") aimRef.current.y += step;
+      if (event.code === "Space") {
+        event.preventDefault();
+        fire();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [fire, phase]);
+
+  useEffect(() => {
+    if (phase !== "active") return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    let frame = 0;
+    let last = performance.now();
+    let lastHud = 0;
+
+    function resize() {
+      if (!canvas) return;
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.floor(window.innerWidth * ratio);
+      canvas.height = Math.floor(window.innerHeight * ratio);
+      canvas.style.width = `${window.innerWidth}px`;
+      canvas.style.height = `${window.innerHeight}px`;
+      context?.setTransform(ratio, 0, 0, ratio, 0, 0);
+    }
+
+    function drawPort(width: number, height: number, elapsed: number) {
+      if (!context) return;
+      const ground = context.createLinearGradient(0, 0, 0, height);
+      ground.addColorStop(0, "#343634");
+      ground.addColorStop(.55, "#151715");
+      ground.addColorStop(1, "#252825");
+      context.fillStyle = ground;
+      context.fillRect(0, 0, width, height);
+
+      context.fillStyle = "#0c0d0c";
+      context.fillRect(0, height * .18, width * .32, height * .31);
+      context.fillRect(width * .36, height * .24, width * .27, height * .23);
+      context.fillRect(width * .66, height * .15, width * .19, height * .3);
+
+      context.strokeStyle = "#565956";
+      context.lineWidth = 2;
+      for (let i = 0; i < 9; i += 1) {
+        const x = width * (.04 + i * .075);
+        context.beginPath();
+        context.moveTo(x, height * .18);
+        context.lineTo(x + width * .05, height * .06);
+        context.lineTo(x + width * .09, height * .18);
+        context.stroke();
+      }
+
+      context.fillStyle = "#393c39";
+      context.strokeStyle = "#8a8d8a";
+      context.lineWidth = 3;
+      const containerX = width * .81;
+      const containerY = height * .39;
+      const containerW = width * .18;
+      const containerH = height * .3;
+      context.fillRect(containerX, containerY, containerW, containerH);
+      context.strokeRect(containerX, containerY, containerW, containerH);
+      for (let i = 1; i < 6; i += 1) {
+        const ribX = containerX + (containerW / 6) * i;
+        context.beginPath();
+        context.moveTo(ribX, containerY);
+        context.lineTo(ribX, containerY + containerH);
+        context.stroke();
+      }
+      context.fillStyle = "#050505";
+      context.fillRect(containerX - 8, containerY + 8, 12, containerH - 16);
+
+      context.strokeStyle = "rgba(210,215,210,.16)";
+      context.lineWidth = 1;
+      for (let i = 0; i < 26; i += 1) {
+        const y = height * .48 + i * 17 + Math.sin(i * 3.1) * 7;
+        context.beginPath();
+        context.moveTo(0, y);
+        context.lineTo(width, y + Math.sin(elapsed + i) * 5);
+        context.stroke();
+      }
+
+      context.fillStyle = "rgba(235,240,235,.08)";
+      for (let i = 0; i < 110; i += 1) {
+        const x = (i * 173 + frame * 7) % width;
+        const y = (i * 97 + frame * 3) % height;
+        context.fillRect(x, y, 1 + (i % 3), 1);
+      }
+    }
+
+    function drawTarget(target: Target, elapsed: number) {
+      if (!context) return;
+      const stride = Math.sin(elapsed * 7 + target.phase);
+      const x = target.x;
+      const y = target.y + Math.sin(elapsed * 2 + target.wobble) * 4;
+      const size = target.size;
+      context.save();
+      context.strokeStyle = "#f7f7f7";
+      context.fillStyle = "#ffffff";
+      context.shadowColor = "#ffffff";
+      context.shadowBlur = 13;
+      context.lineCap = "round";
+      context.lineWidth = size * .22;
+      context.beginPath();
+      context.arc(x, y - size * .85, size * .22, 0, Math.PI * 2);
+      context.fill();
+      context.beginPath();
+      context.moveTo(x, y - size * .58);
+      context.lineTo(x + stride * 2, y + size * .15);
+      context.moveTo(x - 1, y - size * .38);
+      context.lineTo(x - size * .45, y - size * .05 + stride * 4);
+      context.moveTo(x, y - size * .38);
+      context.lineTo(x + size * .44, y - size * .02 - stride * 4);
+      context.moveTo(x, y + size * .08);
+      context.lineTo(x - size * .32, y + size * .72 - stride * 5);
+      context.moveTo(x, y + size * .08);
+      context.lineTo(x + size * .34, y + size * .72 + stride * 5);
+      context.stroke();
+      context.restore();
+    }
+
+    function drawImpact(impact: Impact) {
+      if (!context) return;
+      context.save();
+      context.strokeStyle = `rgba(255,255,255,${impact.life})`;
+      context.lineWidth = 3;
+      context.shadowColor = "white";
+      context.shadowBlur = 20;
+      context.beginPath();
+      context.arc(impact.x, impact.y, (1 - impact.life) * 40 + 5, 0, Math.PI * 2);
+      context.stroke();
+      context.restore();
+    }
+
+    function drawCrosshair(width: number, height: number) {
+      if (!context) return;
+      const aim = aimRef.current;
+      aim.x = Math.max(40, Math.min(width - 40, aim.x));
+      aim.y = Math.max(70, Math.min(height - 50, aim.y));
+      context.save();
+      context.strokeStyle = flashRef.current > 0 ? "#111" : "#f7f7f7";
+      context.lineWidth = 2;
+      context.shadowColor = "#000";
+      context.shadowBlur = 3;
+      context.beginPath();
+      context.moveTo(aim.x - 78, aim.y);
+      context.lineTo(aim.x - 16, aim.y);
+      context.moveTo(aim.x + 16, aim.y);
+      context.lineTo(aim.x + 78, aim.y);
+      context.moveTo(aim.x, aim.y - 70);
+      context.lineTo(aim.x, aim.y - 14);
+      context.moveTo(aim.x, aim.y + 14);
+      context.lineTo(aim.x, aim.y + 70);
+      context.stroke();
+      context.strokeRect(aim.x - 5, aim.y - 5, 10, 10);
+      context.restore();
+    }
+
+    function loop(now: number) {
+      if (!context || !canvas) return;
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const dt = Math.min((now - last) / 1000, .05);
+      const elapsed = (now - startRef.current) / 1000;
+      const time = Math.max(0, Math.ceil(MISSION_SECONDS - elapsed));
+      last = now;
+      frame += 1;
+
+      while (spawnedRef.current < TOTAL_TARGETS && elapsed > .7 + spawnedRef.current * 1.55) {
+        const number = spawnedRef.current;
+        targetsRef.current.push({
+          id: number,
+          x: width * .82 + 20 + Math.random() * 35,
+          y: height * (.51 + Math.random() * .27),
+          speed: width * (.032 + Math.random() * .025),
+          size: 22 + Math.random() * 10,
+          wobble: Math.random() * 8,
+          phase: Math.random() * 8,
+        });
+        spawnedRef.current += 1;
+      }
+
+      targetsRef.current.forEach((target) => {
+        target.x -= target.speed * dt;
+      });
+      const escapedNow = targetsRef.current.filter((target) => target.x < -35).length;
+      if (escapedNow) {
+        escapedRef.current += escapedNow;
+        targetsRef.current = targetsRef.current.filter((target) => target.x >= -35);
+      }
+      impactsRef.current.forEach((impact) => { impact.life -= dt * 1.8; });
+      impactsRef.current = impactsRef.current.filter((impact) => impact.life > 0);
+
+      drawPort(width, height, elapsed);
+      targetsRef.current.forEach((target) => drawTarget(target, elapsed));
+      impactsRef.current.forEach(drawImpact);
+      drawCrosshair(width, height);
+
+      if (flashRef.current > 0) {
+        context.fillStyle = `rgba(255,255,255,${flashRef.current * .18})`;
+        context.fillRect(0, 0, width, height);
+        flashRef.current -= .28;
+      }
+
+      if (now - lastHud > 140) {
+        setHud({ kills: killsRef.current, escaped: escapedRef.current, ammo: ammoRef.current, time });
+        lastHud = now;
+      }
+
+      const resolved = killsRef.current + escapedRef.current;
+      if (resolved >= TOTAL_TARGETS && spawnedRef.current >= TOTAL_TARGETS && targetsRef.current.length === 0) {
+        setPhase(escapedRef.current <= MAX_ESCAPES ? "won" : "lost");
+        return;
+      }
+      if (time <= 0 || ammoRef.current <= 0) {
+        setPhase("lost");
+        return;
+      }
+      frame = requestAnimationFrame(loop);
+    }
+
+    resize();
+    window.addEventListener("resize", resize);
+    frame = requestAnimationFrame(loop);
+    return () => {
+      window.removeEventListener("resize", resize);
+      cancelAnimationFrame(frame);
+    };
+  }, [phase]);
+
+  function updateAim(event: React.PointerEvent<HTMLCanvasElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    aimRef.current = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  }
+
+  return (
+    <section className="gunner-shell" aria-label="Apache thermal gunner final mission">
+      <canvas
+        ref={canvasRef}
+        className="flir-canvas"
+        onPointerMove={updateAim}
+        onPointerDown={(event) => { updateAim(event); fire(); }}
+        aria-label="Thermal targeting screen. Move pointer to aim and click to fire."
+      />
+      <div className="flir-scanlines" aria-hidden="true" />
+      <div className="flir-corners" aria-hidden="true"><i /><i /><i /><i /></div>
+
+      <header className="gunner-hud top">
+        <div><b>TADS</b><span>04:18:26 Z</span></div>
+        <div className="compass"><span>3</span><span>6</span><span>E</span><b>12</b><span>S</span><span>21</span></div>
+        <div className="gunship-id"><b>GUNSHIP 2-1</b><span>ALT 1240</span></div>
+      </header>
+
+      <div className="gunner-hud left"><b>FLIR</b><span>WHOT</span><span>FOV 3.0</span></div>
+      <div className="gunner-hud right"><b>30MM</b><span>ARMED</span><span>RNG 0900</span></div>
+      <footer className="gunner-hud bottom">
+        <div><span>ELIMINATED</span><b>{hud.kills}/{TOTAL_TARGETS}</b></div>
+        <div className={hud.escaped > MAX_ESCAPES ? "danger" : ""}><span>ESCAPED</span><b>{hud.escaped}/{MAX_ESCAPES}</b></div>
+        <div><span>ROUNDS</span><b>{hud.ammo}</b></div>
+        <div className={hud.time <= 10 ? "danger" : ""}><span>TIME</span><b>00:{`${hud.time}`.padStart(2, "0")}</b></div>
+      </footer>
+
+      {phase === "briefing" && (
+        <div className="gunner-overlay">
+          <div className="gunner-card">
+            <p>FINAL MISSION // PIER 400</p>
+            <h2>CONTAINMENT BREACH</h2>
+            <strong>THE CONTAINER IS OPEN.</strong>
+            <p className="brief-copy">You are the thermal gunner aboard Apache Gunship 2-1. Eliminate the infected before they leave the terminal. No more than four can escape.</p>
+            <div className="gunner-controls"><span>MOUSE / TOUCH</span><b>AIM + FIRE</b><span>ARROWS + SPACE</span><b>KEYBOARD</b></div>
+            <button onClick={startMission}>ARM 30MM CANNON</button>
+            <button className="ghost-action" onClick={onExit}>RETURN TO MAP</button>
+          </div>
+        </div>
+      )}
+
+      {(phase === "won" || phase === "lost") && (
+        <div className="gunner-overlay">
+          <div className={`gunner-card outcome ${phase}`}>
+            <p>GUNSHIP 2-1 // AFTER ACTION</p>
+            <h2>{phase === "won" ? "CONTAINMENT SECURED" : "TERMINAL OVERRUN"}</h2>
+            <strong>{hud.kills} INFECTED ELIMINATED // {hud.escaped} ESCAPED</strong>
+            <p className="brief-copy">{phase === "won" ? "Pier 400 is locked down. Recovery teams are moving on the container now." : "Too many infected crossed the terminal perimeter. Reacquire the breach and try again."}</p>
+            <button onClick={startMission}>{phase === "won" ? "RUN GUNSHIP AGAIN" : "RETRY INTERCEPT"}</button>
+            <button className="ghost-action" onClick={onExit}>RETURN TO CASE MAP</button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
