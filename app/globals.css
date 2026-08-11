@@ -281,7 +281,7 @@ h1 {
 .choice-grid.samples { grid-template-columns: repeat(3, 1fr); }
 .choice-grid.samples button b { font-size: 11px; }
 
-.gunner-shell { position: fixed; inset: 0; z-index: 100; overflow: hidden; background: #111 url("/flir-port-bg.png") center/cover no-repeat; color: #f4f4f4; font-family: var(--font-geist-mono), "Courier New", monospace; cursor: crosshair; }
+.gunner-shell { position: fixed; inset: 0; z-index: 100; overflow: hidden; background: #111 url("/flir-port-bg-v2.png") center/cover no-repeat; color: #f4f4f4; font-family: var(--font-geist-mono), "Courier New", monospace; cursor: crosshair; }
 .flir-canvas { position: absolute; inset: 0; display: block; touch-action: none; }
 .flir-scanlines { position: absolute; inset: 0; pointer-events: none; opacity: .42; mix-blend-mode: overlay; background: repeating-linear-gradient(0deg, transparent 0, transparent 3px, rgba(255,255,255,.08) 4px), radial-gradient(circle at center, transparent 30%, rgba(0,0,0,.5) 100%); }
 .flir-corners { position: absolute; inset: 0; pointer-events: none; }
@@ -326,9 +326,9 @@ h1 {
 .gunner-card.outcome.lost { border-color: #8f8f8f; }
 .gunner-card.outcome.lost h2 { color: #c7c7c7; }
 
-.gunner-shell.goliath-mode { background-image: url("/flir-port-topdown.png"); }
-.gunner-shell.goliath-mode.location-2 { background-image: url("/flir-rail-yard.png"); }
-.gunner-shell.goliath-mode.location-3 { background-image: url("/flir-airport-apron.png"); }
+.gunner-shell.goliath-mode { background-image: url("/flir-port-topdown-v2.png"); }
+.gunner-shell.goliath-mode.location-2 { background-image: url("/flir-rail-yard-v2.png"); }
+.gunner-shell.goliath-mode.location-3 { background-image: url("/flir-airport-apron-v2.png"); }
 .goliath-mode .flir-canvas { filter: none; }
 .goliath-mode .flir-scanlines { opacity: .5; background: repeating-linear-gradient(0deg, transparent 0, transparent 2px, rgba(255,255,255,.09) 3px), radial-gradient(circle at center, transparent 32%, rgba(0,0,0,.48) 100%); }
 .goliath-hud { position: absolute; z-index: 4; color: #f3f3f3; font-family: var(--font-geist-mono), "Courier New", monospace; text-shadow: 1px 2px 2px #000, 0 0 7px #000; }

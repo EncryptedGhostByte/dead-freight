@@ -152,7 +152,7 @@ export default function Home() {
           </div>
 
           <div className="map-stage">
-            <img src={`${ASSET_BASE}los-santos-map.jpg`} alt="Grand Theft Auto V map of Los Santos and Blaine County" />
+            <img src={`${ASSET_BASE}los-santos-map-v2.jpg`} alt="Grand Theft Auto V map of Los Santos and Blaine County" />
             <div className="map-vignette" aria-hidden="true" />
             <div className="scanline" aria-hidden="true" />
 
