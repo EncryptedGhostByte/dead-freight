@@ -41,6 +41,7 @@ const LOCATIONS = [
     name: "PIER 400",
     sector: "PORT OF LOS SANTOS",
     objective: "Container breach",
+    image: "/flir-port-topdown.png",
     targets: 18,
     duration: 46,
     team: { x: .25, y: .74 },
@@ -51,21 +52,23 @@ const LOCATIONS = [
     name: "CYPRESS RAIL YARD",
     sector: "EAST LOS SANTOS",
     objective: "Freight transfer intercepted",
+    image: "/flir-rail-yard.png",
     targets: 22,
     duration: 50,
     team: { x: .72, y: .72 },
     breaches: [{ x: .08, y: .16 }, { x: .18, y: .48 }, { x: .48, y: .08 }, { x: .92, y: .24 }],
-    pan: { x: -.12, y: -.07 },
+    pan: { x: 0, y: 0 },
   },
   {
     name: "LSIA CARGO APRON",
     sector: "LOS SANTOS INTERNATIONAL",
     objective: "Final containment",
+    image: "/flir-airport-apron.png",
     targets: 27,
     duration: 56,
     team: { x: .5, y: .76 },
     breaches: [{ x: .06, y: .22 }, { x: .32, y: .06 }, { x: .7, y: .07 }, { x: .94, y: .28 }, { x: .87, y: .58 }],
-    pan: { x: .13, y: .08 },
+    pan: { x: 0, y: 0 },
   },
 ] as const;
 
@@ -87,8 +90,8 @@ function toScreen(x: number, y: number, width: number, height: number, zoom: num
 
 export function ThermalGunner({ onExit }: { onExit: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const backgroundRef = useRef<HTMLImageElement | null>(null);
-  const spriteRef = useRef<HTMLImageElement | null>(null);
+  const backgroundRefs = useRef<HTMLImageElement[]>([]);
+  const spriteTilesRef = useRef<HTMLCanvasElement[]>([]);
   const audioRef = useRef<AudioContext | null>(null);
   const audioOnRef = useRef(true);
   const targetsRef = useRef<Target[]>([]);
@@ -121,16 +124,37 @@ export function ThermalGunner({ onExit }: { onExit: () => void }) {
     let loaded = 0;
     const ready = () => {
       loaded += 1;
-      if (loaded === 2) setAssetsReady(true);
+      if (loaded === LOCATIONS.length + 1) setAssetsReady(true);
     };
-    const background = new window.Image();
     const sprites = new window.Image();
-    background.onload = ready;
-    sprites.onload = ready;
-    background.src = "/flir-port-topdown.png";
+    const backgrounds = LOCATIONS.map((entry) => {
+      const image = new window.Image();
+      image.onload = ready;
+      image.src = entry.image;
+      return image;
+    });
+    sprites.onload = () => {
+      const tiles: HTMLCanvasElement[] = [];
+      const sourceWidth = sprites.naturalWidth / 4;
+      const sourceHeight = sprites.naturalHeight / 2;
+      for (let variant = 0; variant < 2; variant += 1) {
+        for (let index = 0; index < 8; index += 1) {
+          const tile = document.createElement("canvas");
+          tile.width = 96;
+          tile.height = 128;
+          const tileContext = tile.getContext("2d");
+          if (tileContext) {
+            tileContext.filter = variant === 1 ? "contrast(1.55) brightness(1.3)" : "contrast(1.38) brightness(1.12)";
+            tileContext.drawImage(sprites, (index % 4) * sourceWidth, Math.floor(index / 4) * sourceHeight, sourceWidth, sourceHeight, 0, 0, tile.width, tile.height);
+          }
+          tiles.push(tile);
+        }
+      }
+      spriteTilesRef.current = tiles;
+      ready();
+    };
     sprites.src = "/flir-zombies-topdown.png";
-    backgroundRef.current = background;
-    spriteRef.current = sprites;
+    backgroundRefs.current = backgrounds;
     return () => audioRef.current?.close();
   }, []);
 
@@ -343,38 +367,53 @@ export function ThermalGunner({ onExit }: { onExit: () => void }) {
     let last = performance.now();
     let lastHud = 0;
     let noiseFrame = 0;
+    let backgroundCache: HTMLCanvasElement | null = null;
+    let backgroundCacheKey = "";
     const currentLocation = LOCATIONS[wave];
 
     function resize() {
       if (!canvas || !context) return;
-      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      const ratio = window.innerWidth < 900 ? 1 : Math.min(window.devicePixelRatio || 1, 1.35);
       canvas.width = Math.floor(window.innerWidth * ratio);
       canvas.height = Math.floor(window.innerHeight * ratio);
       canvas.style.width = `${window.innerWidth}px`;
       canvas.style.height = `${window.innerHeight}px`;
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.imageSmoothingEnabled = true;
+      backgroundCacheKey = "";
     }
 
     function drawBackground(width: number, height: number) {
       if (!context) return;
-      const image = backgroundRef.current;
+      const image = backgroundRefs.current[wave];
       context.fillStyle = "#111";
       context.fillRect(0, 0, width, height);
       if (image?.complete && image.naturalWidth) {
-        const aspect = width / height;
-        const imageAspect = image.naturalWidth / image.naturalHeight;
-        let sourceWidth = image.naturalWidth / zoomRef.current;
-        let sourceHeight = image.naturalHeight / zoomRef.current;
-        if (imageAspect > aspect) sourceWidth = sourceHeight * aspect;
-        else sourceHeight = sourceWidth / aspect;
-        const shake = shakeRef.current * 7;
-        const baseX = (image.naturalWidth - sourceWidth) / 2 + currentLocation.pan.x * sourceWidth;
-        const baseY = (image.naturalHeight - sourceHeight) / 2 + currentLocation.pan.y * sourceHeight;
-        const sourceX = Math.max(0, Math.min(image.naturalWidth - sourceWidth, baseX + (Math.random() - .5) * shake));
-        const sourceY = Math.max(0, Math.min(image.naturalHeight - sourceHeight, baseY + (Math.random() - .5) * shake));
-        context.filter = `grayscale(1) contrast(${wave === 2 ? 1.48 : 1.28}) brightness(${wave === 1 ? .62 : .72})`;
-        context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, width, height);
-        context.filter = "none";
+        const key = `${Math.round(width)}:${Math.round(height)}:${zoomRef.current}`;
+        if (!backgroundCache || backgroundCacheKey !== key) {
+          backgroundCache = document.createElement("canvas");
+          backgroundCache.width = Math.max(1, Math.round(width));
+          backgroundCache.height = Math.max(1, Math.round(height));
+          const cacheContext = backgroundCache.getContext("2d");
+          if (cacheContext) {
+            const aspect = width / height;
+            const imageAspect = image.naturalWidth / image.naturalHeight;
+            let sourceWidth = image.naturalWidth / zoomRef.current;
+            let sourceHeight = image.naturalHeight / zoomRef.current;
+            if (imageAspect > aspect) sourceWidth = sourceHeight * aspect;
+            else sourceHeight = sourceWidth / aspect;
+            const baseX = (image.naturalWidth - sourceWidth) / 2 + currentLocation.pan.x * sourceWidth;
+            const baseY = (image.naturalHeight - sourceHeight) / 2 + currentLocation.pan.y * sourceHeight;
+            const sourceX = Math.max(0, Math.min(image.naturalWidth - sourceWidth, baseX));
+            const sourceY = Math.max(0, Math.min(image.naturalHeight - sourceHeight, baseY));
+            cacheContext.filter = `grayscale(1) contrast(${wave === 2 ? 1.48 : 1.28}) brightness(${wave === 1 ? .62 : .72})`;
+            cacheContext.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, backgroundCache.width, backgroundCache.height);
+            cacheContext.filter = "none";
+          }
+          backgroundCacheKey = key;
+        }
+        const shake = shakeRef.current * 4;
+        context.drawImage(backgroundCache, (Math.random() - .5) * shake - 2, (Math.random() - .5) * shake - 2, width + 4, height + 4);
       }
 
       context.save();
@@ -418,7 +457,7 @@ export function ThermalGunner({ onExit }: { onExit: () => void }) {
       context.fillStyle = vignette;
       context.fillRect(0, 0, width, height);
       context.fillStyle = "rgba(255,255,255,.08)";
-      for (let i = 0; i < 90; i += 1) context.fillRect((i * 191 + noiseFrame * 11) % width, (i * 83 + noiseFrame * 5) % height, i % 4 === 0 ? 2 : 1, 1);
+      for (let i = 0; i < 24; i += 1) context.fillRect((i * 191 + noiseFrame * 11) % width, (i * 83 + noiseFrame * 5) % height, i % 4 === 0 ? 2 : 1, 1);
     }
 
     function drawTeam(width: number, height: number) {
@@ -445,13 +484,10 @@ export function ThermalGunner({ onExit }: { onExit: () => void }) {
 
     function drawTarget(target: Target, width: number, height: number, elapsed: number) {
       if (!context) return;
-      const sprites = spriteRef.current;
-      if (!sprites?.complete || !sprites.naturalWidth) return;
       const point = toScreen(target.x, target.y, width, height, zoomRef.current);
-      const tileWidth = sprites.naturalWidth / 4;
-      const tileHeight = sprites.naturalHeight / 2;
-      const column = target.sprite % 4;
-      const row = Math.floor(target.sprite / 4);
+      if (point.x < -90 || point.x > width + 90 || point.y < -120 || point.y > height + 120) return;
+      const tile = spriteTilesRef.current[target.sprite + (target.heavy ? 8 : 0)];
+      if (!tile) return;
       const scale = target.size * zoomRef.current;
       const drawWidth = scale * (target.heavy ? 5.5 : 4.3);
       const drawHeight = scale * (target.heavy ? 5.7 : 4.6);
@@ -460,8 +496,7 @@ export function ThermalGunner({ onExit }: { onExit: () => void }) {
       context.rotate(Math.sin(elapsed * 3 + target.sway) * .035);
       context.globalCompositeOperation = "screen";
       context.globalAlpha = .96;
-      context.filter = target.heavy ? "contrast(1.55) brightness(1.3)" : "contrast(1.38) brightness(1.12)";
-      context.drawImage(sprites, column * tileWidth, row * tileHeight, tileWidth, tileHeight, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+      context.drawImage(tile, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
       context.restore();
     }
 
